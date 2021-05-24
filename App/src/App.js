@@ -13,7 +13,9 @@ const useStyles = makeStyles({
   },
   container: {
     width: "35%",
-    height: "100%"
+    height: "100%",
+    paddingTop: "15px",
+    boxSizing: "border-box"
   }
 })
 
@@ -25,13 +27,17 @@ const App = () => {
     setCurrentMountPointId(id)
   }
 
+  const onReturn = () => {
+    setCurrentMountPointId(-1)
+  }
+
   return (
     <div className={classes.root}>
       <div className={classes.container}>
         {
           currentMountPointId === -1 
             ? <MountPointSelection onMountPointSelect={onMountPointSelect}/> 
-            : <FileBrowser mountPointId={currentMountPointId} />
+            : <FileBrowser mountPointId={currentMountPointId} onReturn={onReturn}/>
         }
       </div>
     </div>

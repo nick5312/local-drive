@@ -10,7 +10,9 @@ import {
   Paper,
   makeStyles,
   Grid,
-  Button
+  Button,
+  IconButton,
+  Checkbox
 } from "@material-ui/core"
 
 import { 
@@ -19,7 +21,9 @@ import {
   LibraryMusic, 
   Folder, 
   TextFields,
-  InsertDriveFile 
+  InsertDriveFile,
+  Delete,
+
 } from "@material-ui/icons"
 
 import { useState, useEffect, forwardRef } from "react"
@@ -50,13 +54,26 @@ const useStyles = makeStyles({
     transform: "translate(-50%, -50%)",
     position: "absolute"
   },
+  container: {
+    height: "100%",
+  },
   navItem: {
     maxWidth: "200px"
   },
   header: {
     backgroundColor: "#f5f5f5",
-    marginBottom: "15px",
-    height: "30%"
+    height: "55px",
+    display: "flex",
+    alignItems: "center"
+  },
+  fileBrowser: {
+    height: "calc(100% - 55px - 65px)",
+    overflow: "auto"
+  },
+  navBar: {
+    height: "50px",
+    display: "flex",
+    alignItems: "center"
   }
 })
 
@@ -146,15 +163,35 @@ const FileBrowser = (props) => {
   const [currentFolder, setCurrentFolder] = useState({})
   const [folderStack, setFolderStack] = useState([])
   const [openFile, setOpenFile] = useState({})
+  const [interactState, setInteractState] = useState(false)
+  const [selectedIndices, setSelectedIndices] = useState([])
 
   useEffect(() => {
     getMountPointFiles(props.mountPointId)
       .then(folder => {
-        console.log(folder)
         setCurrentFolder(folder)
         setFolderStack([folder])
       })
   }, [props.mountPointId])
+
+  const refreshCurrentPath = () => {
+    getMountPointFiles(props.mountPointId)
+      .then(folder => {
+        if ("children" in folder) {
+          let newFolderStack = [folder]
+          let newCurrentFolder = folder
+          for (var index = 1; index < folderStack.length; index++) {
+            const oldFolder = folderStack[index]
+            const sameFolderIndex = newCurrentFolder["children"].findIndex(file => file["name"] === oldFolder["name"])
+            newFolderStack.push(newCurrentFolder["children"][sameFolderIndex])
+            newCurrentFolder = newCurrentFolder["children"][sameFolderIndex]
+          }
+
+          setFolderStack(newFolderStack)
+          setCurrentFolder(newCurrentFolder)
+        }
+      })
+  }
 
   const onFileClick = (file) => {
     if (file["type"] === "FOLDER") {
@@ -165,6 +202,45 @@ const FileBrowser = (props) => {
     }
   }
 
+  const onFileDelete = () => {
+    console.log(selectedIndices)
+    let promises = []
+    for (const index of selectedIndices) {
+      const file = currentFolder["children"][index]
+      promises.push(fetch(`/location/${props.mountPointId}/file?path=${encodeURIComponent(file["path"])}`, {
+        method: "DELETE"
+      }))
+    }
+
+    Promise.all(promises)
+      .then(_ => {
+        let currentFolderCopy = {}
+        Object.assign(currentFolderCopy, currentFolder)
+        currentFolderCopy["children"] = currentFolderCopy["children"]
+          .filter((_, index) => !selectedIndices.includes(index))
+        setCurrentFolder(currentFolderCopy)
+
+        let folderStackCopy = [...folderStack]
+        folderStackCopy.splice(folderStack.length - 1, 1, currentFolderCopy)
+        setFolderStack(folderStackCopy)
+
+        setSelectedIndices([])
+        setInteractState(false)
+      })
+  }
+
+  const onFileUpload = (e) => {
+    const formData = new FormData();
+    formData.append("file", e.target.files[0])
+    formData.append("name", "upload")
+    console.log(currentFolder)
+
+    fetch(`/location/${props.mountPointId}/file?path=${currentFolder["path"]}`, {
+      method: "POST",
+      body: formData
+    }).then(_ => refreshCurrentPath())
+  } 
+
   const onNavClick = (index) => {
     if (index !== folderStack.length - 1) {
       const clickedFolder = folderStack[index]
@@ -173,54 +249,78 @@ const FileBrowser = (props) => {
     }
   }
 
+  const onItemSelect = (number) => {
+    if (selectedIndices.includes(number)) {
+      const copy = [...selectedIndices]
+      const index = copy.indexOf(number)
+      copy.splice(index, 1)
+      setSelectedIndices(copy)
+    } else {
+      setSelectedIndices([...selectedIndices, number])
+    }
+  }
+
   return (
-    <div style={{height: "100%"}}>
+    <div className={classes.container}>
       <div className={classes.header}>
-        <Grid container justify="flex-end" spacing={2}>
-          <Grid container item xs={9}>
-            <Grid item xs={4}>
-              <Button>Return</Button> 
-            </Grid>
+        <Grid container spacing={0}>
+          <Grid item xs={1}>
+            <Button component="label">
+              Upload
+              <input onChange={onFileUpload} type="file" hidden/>        
+            </Button>
           </Grid>
-          <Grid container item xs={3}>
-            <Grid item xs={6}>
-              <Button>Upload</Button>
-            </Grid>
-            <Grid item xs={6}>
-              <Button>Delete</Button>
-            </Grid>
+          <Grid item xs={1}>
+            <Button onClick={onFileDelete}>Delete</Button>
+          </Grid>
+          <Grid item xs={1}>
+            <Button onClick={() => setInteractState(!interactState)}>Modify</Button>
           </Grid>
         </Grid>
       </div>
-      <Breadcrumbs>
-        <Typography noWrap>
-          <Link
-            color="inherit">
-              
-          </Link>
-        </Typography>
-        {
-          folderStack.map((item, index) =>
-          <div key={index} className={classes.navItem}>
+      <div className={classes.navBar}>
+        <Breadcrumbs>
             <Typography noWrap>
               <Link
                 color="inherit"
-                onClick={() => onNavClick(index)}>
-                  {item["name"]}
+                onClick={props.onReturn}
+                >
+                  Selection
               </Link>
             </Typography>
-          </div>)
-        }
-      </Breadcrumbs>
-      <div>
+          {
+            folderStack.map((item, index) =>
+            <div key={index} className={classes.navItem}>
+              <Typography noWrap>
+                <Link
+                  color="inherit"
+                  onClick={() => onNavClick(index)}>
+                    {item["name"]}
+                </Link>
+              </Typography>
+            </div>)
+          }
+          </Breadcrumbs>
+      </div>
+      <div className={classes.fileBrowser}>
         {
-          Object.keys(currentFolder).length && currentFolder["children"].map((item, index) => 
-            <ListItem button key={index} onClick={() => onFileClick(item)}>
-              <ListItemIcon>
-                <FileBrowserIcon fileType={item["type"]}/>
-              </ListItemIcon>
-              <ListItemText primary={item["name"]}/>
-            </ListItem>
+          Object.keys(currentFolder).length && currentFolder["children"].map((item, index) =>
+            <Grid container key={index} spacing>
+              {
+                interactState &&
+                  <Grid container align="center" justify="center" item xs={1}>
+                    <Checkbox onChange={() => onItemSelect(index)} checked={selectedIndices.includes(index)}/>
+                  </Grid>
+              }
+              <Grid item xs={interactState ? 11 : 12}>
+                <ListItem button onClick={() => onFileClick(item)}>
+                  <ListItemIcon>
+                    <FileBrowserIcon fileType={item["type"]}/>
+                  </ListItemIcon>
+                  <ListItemText primary={item["name"]}/>
+                </ListItem>
+              </Grid>
+            </Grid>
           )
         }
       </div>
@@ -230,7 +330,6 @@ const FileBrowser = (props) => {
         <FileViewer mountPointId={props.mountPointId} file={openFile} />
       </Modal>
     </div>
-
   )
 }
 

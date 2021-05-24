@@ -2,6 +2,7 @@ from flask import Flask, request
 from urllib.parse import unquote;
 from pathlib import Path
 import sqlite3
+from send2trash import send2trash
 
 from flask.helpers import send_file
 
@@ -67,6 +68,7 @@ def get_or_delete_location(id):
 
                 if file.is_dir():
                     child_files = []
+                    directory_file["path"] = current_path + slash_str + file.name
                     process_files(file, child_files, current_path + slash_str + file.name)
                     directory_file["children"] = child_files
                 else:
@@ -80,7 +82,8 @@ def get_or_delete_location(id):
         root_directory = {
             "name": mount_path.name,
             "type": "FOLDER",
-            "children": []
+            "path": "",
+            "children": [],
         }
 
         process_files(mount_path, root_directory["children"], "")
@@ -90,10 +93,10 @@ def get_or_delete_location(id):
         con.commit()
         return "Mount path removed", 200
 
-@app.route("/location/<int:id>/file")
+@app.route("/location/<int:id>/file", methods=["GET", "DELETE", "POST"])
 def get_location_file(id):
     file_path = request.args.get("path")
-    if not file_path:
+    if file_path == None:
         return "Invalid path id spcified!", 404
 
     con = sqlite3.connect("app.db")
@@ -107,5 +110,15 @@ def get_location_file(id):
     full_file_path = Path(mount_path[0], file_path)
     if not full_file_path.exists():
         return "Invalid path id spcified!", 404
-
-    return send_file(full_file_path)
+    
+    if request.method == "GET":
+        return send_file(full_file_path)
+    elif request.method == "DELETE":
+        send2trash(str(full_file_path))
+        return "File deleted!", 200
+    elif request.method == "POST":
+        if "file" in request.files:
+            file = request.files["file"]
+            file.save(Path(full_file_path, file.filename))
+            return "File received!", 200
+        return "File upload failed!", 404

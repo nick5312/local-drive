@@ -1,0 +1,4 @@
+/Server/__pycache__
+/Server/app.db
+/App/node_modules
+/App/yarn.lock
