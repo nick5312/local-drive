@@ -27,6 +27,7 @@ def identify_file(f):
 def add_location():
     con = sqlite3.connect("app.db")
     cur = con.cursor()
+    cur.execute('CREATE TABLE IF NOT EXISTS "LOCATIONS" ("ID" INTEGER, "PATH" TEXT, PRIMARY KEY("ID"))')
 
     if request.method == "POST":
         encoded_path = request.args.get("path")
