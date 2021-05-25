@@ -371,7 +371,7 @@ const FileBrowser = (props) => {
           </Breadcrumbs>
       </div>
       <div className={classes.fileBrowser}>
-        {Object.keys(currentFolder).length && (
+        {Object.keys(currentFolder).length !== 0 && (
           currentFolder["children"].map((item, index) =>
             <Grid container key={index} spacing={0}>
               {interactState &&
