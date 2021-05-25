@@ -37,6 +37,12 @@ def add_location():
         if not file_path.exists() or not file_path.is_dir():
             return "Mount path not found", 404
 
+        cur.execute("SELECT * FROM LOCATIONS")
+        rows = cur.fetchall()
+        for row in rows:
+            if row[1] == str(file_path):
+                return "Mount path already exists", 404
+
         cur.execute("INSERT INTO LOCATIONS (PATH) VALUES (?)", (str(file_path),))
         con.commit()
         return "Mount path created", 201

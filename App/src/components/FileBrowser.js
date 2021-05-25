@@ -1,6 +1,5 @@
 import { 
   Breadcrumbs,
-  List, 
   ListItem, 
   ListItemIcon, 
   ListItemText, 
@@ -11,7 +10,6 @@ import {
   makeStyles,
   Grid,
   Button,
-  IconButton,
   Checkbox,
   Menu,
   MenuItem
@@ -24,13 +22,17 @@ import {
   Folder, 
   TextFields,
   InsertDriveFile,
-  Delete,
-
 } from "@material-ui/icons"
 
-import { useState, useEffect, forwardRef } from "react"
+import { 
+  useState, 
+  useEffect, 
+  forwardRef 
+} from "react"
 
-const useStyles = makeStyles({
+import doFetch from "../utils/doFetch"
+
+const useModalStyles = makeStyles({
   textModal: {
     width: "60%",
     height: "80%",
@@ -55,7 +57,81 @@ const useStyles = makeStyles({
     width: "40%",
     transform: "translate(-50%, -50%)",
     position: "absolute"
-  },
+  }
+})
+
+const FileBrowserIcon = (props) => {
+  switch (props.fileType) {
+    case "TEXT": return <TextFields />
+    case "AUDIO": return <LibraryMusic />
+    case "IMAGE": return <Image />
+    case "VIDEO": return <Movie />
+    case "FOLDER": return <Folder />
+    default: return <InsertDriveFile />
+  }
+}
+
+const TextModal = (props) => {
+  const requestUrl = `/location/${props.mountPointId}/file?path=${encodeURIComponent(props.file["path"])}`
+  const classes = useModalStyles()
+  const [text, setText] = useState("")
+  
+  useEffect(() => {
+    doFetch(requestUrl)
+      .then(res => res.text())
+      .then(text => setText(text))
+  }, [props.file, props.mountPointId, requestUrl])
+
+  return (
+      <Paper className={classes.textModal}>
+        <Typography variant="h5">{props.file["name"]}</Typography>
+        <Typography>{text}</Typography>
+      </Paper>
+  )
+}
+
+const ImageModal = (props) => {
+  const requestUrl = `http://localhost:5000/location/${props.mountPointId}/file?path=${encodeURIComponent(props.file["path"])}`
+  const classes = useModalStyles()
+
+  return <img alt="" className={classes.imageModal} src={requestUrl} />
+}
+
+const VideoModal = (props) => {
+  const requestUrl = `http://localhost:5000/location/${props.mountPointId}/file?path=${encodeURIComponent(props.file["path"])}`
+  const classes = useModalStyles()
+
+  return (
+    <video
+      className={classes.imageModal}
+      src={requestUrl}
+      autoPlay
+      controls
+    />
+  )
+}
+
+const AudioModal = (props) => {
+  const requestUrl = `http://localhost:5000/location/${props.mountPointId}/file?path=${encodeURIComponent(props.file["path"])}`
+  const classes = useModalStyles()
+
+  return (
+    <audio
+      className={classes.audioModal}
+      src={requestUrl}
+      controls
+      autoPlay
+    />
+  )
+}
+
+const getMountPointFiles = async (id) => {
+  const res = await fetch(`/location/${id}`)
+  const data = await res.json()
+  return data["data"]
+}
+
+const useStyles = makeStyles({
   container: {
     height: "100%",
   },
@@ -84,76 +160,6 @@ const useStyles = makeStyles({
   }
 })
 
-const getMountPointFiles = async (id) => {
-  const res = await fetch(`/location/${id}`)
-  const data = await res.json()
-  return data["data"]
-}
-
-const FileBrowserIcon = (props) => {
-  switch (props.fileType) {
-    case "TEXT": return <TextFields />
-    case "AUDIO": return <LibraryMusic />
-    case "IMAGE": return <Image />
-    case "VIDEO": return <Movie />
-    case "FOLDER": return <Folder />
-    default: return <InsertDriveFile />
-  }
-}
-
-const TextModal = (props) => {
-  const classes = useStyles()
-  const [text, setText] = useState("")
-
-  useEffect(() => {
-    fetch(`/location/${props.mountPointId}/file?path=${encodeURIComponent(props.file["path"])}`)
-      .then(res => res.text())
-      .then(text => setText(text))
-  }, [props.file, props.mountPointId])
-
-  return (
-      <Paper className={classes.textModal}>
-        <Typography variant="h5">{props.file["name"]}</Typography>
-        <Typography>{text}</Typography>
-      </Paper>
-  )
-}
-
-const ImageModal = (props) => {
-  const classes = useStyles()
-
-  return (
-      <img 
-        className={classes.imageModal} 
-        src={`http://localhost:5000/location/${props.mountPointId}/file?path=${encodeURIComponent(props.file["path"])}`}
-      />
-  )
-}
-
-const VideoModal = (props) => {
-  const classes = useStyles()
-
-  return (
-    <video
-      autoPlay
-      className={classes.imageModal}
-      controls
-      src={`http://localhost:5000/location/${props.mountPointId}/file?path=${encodeURIComponent(props.file["path"])}`}/>
-  )
-}
-
-const AudioModal = (props) => {
-  const classes = useStyles()
-
-  return (
-    <audio
-      className={classes.audioModal}
-      controls
-      autoPlay
-      src={`http://localhost:5000/location/${props.mountPointId}/file?path=${encodeURIComponent(props.file["path"])}`}
-    />
-  )
-}
 
 const FileViewer = forwardRef((props, ref) => {
   switch (props.file["type"]) {
@@ -171,7 +177,7 @@ const FileInfo = (props) => {
   return (
     <div className={classes.fileInfo}>
       <ListItemText style={{width: "50px"}}>{props.file["size"]}</ListItemText>
-      <ListItemText style={{width: "50px"}}>{props.file["creation_time"]}</ListItemText>
+      <ListItemText style={{width: "50px"}}>{props.file["last_modified"]}</ListItemText>
     </div>
   )
 }
@@ -222,43 +228,37 @@ const FileBrowser = (props) => {
     }
   }
 
-  const onFileDelete = () => {
-    console.log(selectedIndices)
-    let promises = []
+  const onFileDelete = async () => {
     for (const index of selectedIndices) {
       const file = currentFolder["children"][index]
-      promises.push(fetch(`/location/${props.mountPointId}/file?path=${encodeURIComponent(file["path"])}`, {
-        method: "DELETE"
-      }))
+      const requestUrl = `/location/${props.mountPointId}/file?path=${encodeURIComponent(file["path"])}`
+      await doFetch(requestUrl, "DELETE")
     }
 
-    Promise.all(promises)
-      .then(_ => {
-        let currentFolderCopy = {}
-        Object.assign(currentFolderCopy, currentFolder)
-        currentFolderCopy["children"] = currentFolderCopy["children"]
-          .filter((_, index) => !selectedIndices.includes(index))
-        setCurrentFolder(currentFolderCopy)
+    let currentFolderCopy = {}
+    Object.assign(currentFolderCopy, currentFolder)
+    currentFolderCopy["children"] = currentFolderCopy["children"]
+      .filter((_, index) => !selectedIndices.includes(index))
+    setCurrentFolder(currentFolderCopy)
 
-        let folderStackCopy = [...folderStack]
-        folderStackCopy.splice(folderStack.length - 1, 1, currentFolderCopy)
-        setFolderStack(folderStackCopy)
+    let folderStackCopy = [...folderStack]
+    folderStackCopy.splice(folderStack.length - 1, 1, currentFolderCopy)
+    setFolderStack(folderStackCopy)
 
-        setSelectedIndices([])
-        setInteractState(false)
-      })
+    setSelectedIndices([])
+    setInteractState(false)
   }
 
   const onFileUpload = (e) => {
     const formData = new FormData();
     formData.append("file", e.target.files[0])
     formData.append("name", "upload")
-
     fetch(`/location/${props.mountPointId}/file?path=${currentFolder["path"]}`, {
       method: "POST",
       body: formData
     }).then(_ => refreshCurrentPath())
-  } 
+    e.target.value = null
+  }
 
   const onNavClick = (index) => {
     if (index !== folderStack.length - 1) {
@@ -287,7 +287,7 @@ const FileBrowser = (props) => {
       if (sortKey === "type" || sortKey === "size") {
         parsedRhs = rhs
         parsedLhs = lhs
-      } else if (sortKey === "creation_time") {
+      } else if (sortKey === "last_modified") {
         parsedRhs = Date.parse(rhs)
         parsedLhs = Date.parse(lhs)
       }
@@ -325,7 +325,7 @@ const FileBrowser = (props) => {
           <Grid item xs={1}>
             <Button component="label">
               Upload
-              <input onChange={onFileUpload} type="file" hidden/>        
+              <input onChange={onFileUpload} onClick={(e) => e.target.value} type="file" hidden/>        
             </Button>
           </Grid>
           <Grid item xs={1}>
@@ -342,7 +342,7 @@ const FileBrowser = (props) => {
               open={Boolean(menuAnchorEl)}
               onClose={() => onSortMenuClose("")}
             >
-              <MenuItem onClick={() => onSortMenuClose("creation_time")}>Date</MenuItem>
+              <MenuItem onClick={() => onSortMenuClose("last_modified")}>Date</MenuItem>
               <MenuItem onClick={() => onSortMenuClose("size")}>Size</MenuItem>
               <MenuItem onClick={() => onSortMenuClose("type")}>Type</MenuItem>
             </Menu>
@@ -355,36 +355,31 @@ const FileBrowser = (props) => {
       <div className={classes.navBar}>
         <Breadcrumbs>
             <Typography noWrap>
-              <Link
-                color="inherit"
-                onClick={props.onReturn}
-                >
-                  Selection
+              <Link color="inherit" onClick={props.onReturn}>
+                  ...
               </Link>
             </Typography>
-          {
-            folderStack.map((item, index) =>
+          {folderStack.map((item, index) => 
             <div key={index} className={classes.navItem}>
               <Typography noWrap>
-                <Link
-                  color="inherit"
-                  onClick={() => onNavClick(index)}>
+                <Link color="inherit" onClick={() => onNavClick(index)}>
                     {item["name"]}
                 </Link>
               </Typography>
-            </div>)
-          }
+            </div>
+          )}
           </Breadcrumbs>
       </div>
       <div className={classes.fileBrowser}>
-        {
-          Object.keys(currentFolder).length && currentFolder["children"].map((item, index) =>
-            <Grid container key={index} spacing>
-              {
-                interactState &&
-                  <Grid container align="center" justify="center" item xs={1}>
+        {Object.keys(currentFolder).length && (
+          currentFolder["children"].map((item, index) =>
+            <Grid container key={index} spacing={0}>
+              {interactState &&
+                <Grid container align="center" justify="center" item xs={1}>
+                  <Grid item xs={12}>
                     <Checkbox onChange={() => onItemSelect(index)} checked={selectedIndices.includes(index)}/>
                   </Grid>
+                </Grid>
               }
               <Grid item xs={interactState ? 11 : 12}>
                 <ListItem button onClick={() => onFileClick(item)}>
@@ -397,7 +392,7 @@ const FileBrowser = (props) => {
               </Grid>
             </Grid>
           )
-        }
+        )}
       </div>
       <Modal
         open={Object.keys(openFile).length !== 0} 
