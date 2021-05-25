@@ -1,7 +1,7 @@
 import { makeStyles } from '@material-ui/core/styles';
 import { useState } from 'react';
-import FileBrowser from './components/FileBrowser';
 
+import FileBrowser from './components/FileBrowser';
 import MountPointSelection from "./components/MountPointSelection"
 
 const useStyles = makeStyles({
@@ -19,26 +19,39 @@ const useStyles = makeStyles({
   }
 })
 
+const MainComponent = (props) => {
+  const { state, ...rest } = props
+
+  switch (state) {
+    case "MOUNT_SELECT": return <MountPointSelection {...rest}/>
+    case "FILE_BROWSER": return <FileBrowser {...rest}/>
+    default: return <div>Invalid application state</div>
+  }
+}
+
 const App = () => {
   const classes = useStyles()
-  const [currentMountPointId, setCurrentMountPointId] = useState(-1)
+  const [currentMountPointId, setCurrentMountPointId] = useState(0)
+  const [currentAppState, setCurrentAppState] = useState("MOUNT_SELECT")
 
   const onMountPointSelect = (id) => {
     setCurrentMountPointId(id)
+    setCurrentAppState("FILE_BROWSER")
   }
 
   const onReturn = () => {
-    setCurrentMountPointId(-1)
+    setCurrentAppState("MOUNT_SELECT")
   }
 
   return (
     <div className={classes.root}>
       <div className={classes.container}>
-        {
-          currentMountPointId === -1 
-            ? <MountPointSelection onMountPointSelect={onMountPointSelect}/> 
-            : <FileBrowser mountPointId={currentMountPointId} onReturn={onReturn}/>
-        }
+        <MainComponent
+          state={currentAppState}
+          mountPointId={currentMountPointId}
+          onMountPointSelect={onMountPointSelect}
+          onReturn={onReturn}
+        />
       </div>
     </div>
     )

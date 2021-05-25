@@ -12,7 +12,9 @@ import {
   Grid,
   Button,
   IconButton,
-  Checkbox
+  Checkbox,
+  Menu,
+  MenuItem
 } from "@material-ui/core"
 
 import { 
@@ -74,6 +76,11 @@ const useStyles = makeStyles({
     height: "50px",
     display: "flex",
     alignItems: "center"
+  },
+  fileInfo: {
+    display: "flex",
+    flex: "1",
+    justifyContent: "flex-end"
   }
 })
 
@@ -158,6 +165,17 @@ const FileViewer = forwardRef((props, ref) => {
   }
 })
 
+const FileInfo = (props) => {
+  const classes = useStyles()
+
+  return (
+    <div className={classes.fileInfo}>
+      <ListItemText style={{width: "50px"}}>{props.file["size"]}</ListItemText>
+      <ListItemText style={{width: "50px"}}>{props.file["creation_time"]}</ListItemText>
+    </div>
+  )
+}
+
 const FileBrowser = (props) => {
   const classes = useStyles()
   const [currentFolder, setCurrentFolder] = useState({})
@@ -165,6 +183,8 @@ const FileBrowser = (props) => {
   const [openFile, setOpenFile] = useState({})
   const [interactState, setInteractState] = useState(false)
   const [selectedIndices, setSelectedIndices] = useState([])
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null)
+  const [sortType, setSortType] = useState("ASC")
 
   useEffect(() => {
     getMountPointFiles(props.mountPointId)
@@ -233,7 +253,6 @@ const FileBrowser = (props) => {
     const formData = new FormData();
     formData.append("file", e.target.files[0])
     formData.append("name", "upload")
-    console.log(currentFolder)
 
     fetch(`/location/${props.mountPointId}/file?path=${currentFolder["path"]}`, {
       method: "POST",
@@ -260,6 +279,45 @@ const FileBrowser = (props) => {
     }
   }
 
+  const onSortMenuClose = (sortKey) => {
+    const compare = (lhs, rhs) => {
+      let parsedLhs = null
+      let parsedRhs = null
+
+      if (sortKey === "type" || sortKey === "size") {
+        parsedRhs = rhs
+        parsedLhs = lhs
+      } else if (sortKey === "creation_time") {
+        parsedRhs = Date.parse(rhs)
+        parsedLhs = Date.parse(lhs)
+      }
+
+      if (parsedLhs === parsedRhs) {
+        return 0
+      }
+
+      if (parsedLhs < parsedRhs) {
+        return (sortType === "ASC" ? 1 : -1)
+      }
+
+      if (parsedLhs > parsedRhs) {
+        return (sortType === "ASC" ? -1 : 1)
+      }
+    }
+
+    if (sortKey !== "") {
+      let currentFolderCopy = {}
+      Object.assign(currentFolderCopy, currentFolder)
+      currentFolderCopy["children"]
+      .sort((first, second) => 
+        compare(first[sortKey], second[sortKey]))
+      setCurrentFolder(currentFolderCopy)
+    }
+
+    setMenuAnchorEl(null)
+    setSortType((sortType === "ASC" ? "DESC" : "ASC"))
+  }
+
   return (
     <div className={classes.container}>
       <div className={classes.header}>
@@ -275,6 +333,22 @@ const FileBrowser = (props) => {
           </Grid>
           <Grid item xs={1}>
             <Button onClick={() => setInteractState(!interactState)}>Modify</Button>
+          </Grid>
+          <Grid item xs={1}>
+            <Button onClick={(e) => setMenuAnchorEl(e.currentTarget)}>Sort</Button>
+            <Menu
+              anchorEl={menuAnchorEl}
+              keepMounted
+              open={Boolean(menuAnchorEl)}
+              onClose={() => onSortMenuClose("")}
+            >
+              <MenuItem onClick={() => onSortMenuClose("creation_time")}>Date</MenuItem>
+              <MenuItem onClick={() => onSortMenuClose("size")}>Size</MenuItem>
+              <MenuItem onClick={() => onSortMenuClose("type")}>Type</MenuItem>
+            </Menu>
+          </Grid>
+          <Grid item xs={1}>
+            <Button onClick={() => refreshCurrentPath()}>Refresh</Button>
           </Grid>
         </Grid>
       </div>
@@ -317,7 +391,8 @@ const FileBrowser = (props) => {
                   <ListItemIcon>
                     <FileBrowserIcon fileType={item["type"]}/>
                   </ListItemIcon>
-                  <ListItemText primary={item["name"]}/>
+                  <ListItemText style={{width: "200px"}} primary={item["name"]}/>
+                  <FileInfo file={item}/>
                 </ListItem>
               </Grid>
             </Grid>

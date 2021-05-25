@@ -3,6 +3,7 @@ from urllib.parse import unquote;
 from pathlib import Path
 import sqlite3
 from send2trash import send2trash
+from datetime import datetime
 
 from flask.helpers import send_file
 
@@ -61,21 +62,21 @@ def get_or_delete_location(id):
             for file in root.iterdir():
                 file_type = identify_file(file)
                 slash_str = "" if len(current_path) == 0 else "/"
+
+                file_info = file.stat()
+                changeTime = datetime.fromtimestamp(file_info.st_mtime)
                 directory_file = {
                     "name": file.name,
                     "type": file_type,
+                    "size": file_info.st_size,
+                    "last_modified": changeTime.strftime("%Y-%m-%d"),
+                    "path": current_path + slash_str + file.name
                 }
 
                 if file.is_dir():
                     child_files = []
-                    directory_file["path"] = current_path + slash_str + file.name
                     process_files(file, child_files, current_path + slash_str + file.name)
                     directory_file["children"] = child_files
-                else:
-                    file_info = file.stat()
-                    directory_file["size"] = file_info.st_size
-                    directory_file["creation_time"] = file_info.st_ctime_ns
-                    directory_file["path"] = current_path + slash_str + file.name
 
                 current_directory.append(directory_file)
 
@@ -87,7 +88,7 @@ def get_or_delete_location(id):
         }
 
         process_files(mount_path, root_directory["children"], "")
-        return {"data": root_directory}, 200
+        return { "data": root_directory }, 200
     else:
         cur.execute("DELETE FROM LOCATIONS WHERE ID = ?", (id,))
         con.commit()
