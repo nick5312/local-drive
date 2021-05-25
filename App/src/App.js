@@ -12,7 +12,7 @@ const useStyles = makeStyles({
     height: "100%",
   },
   container: {
-    width: "35%",
+    width: "45%",
     height: "100%",
     paddingTop: "15px",
     boxSizing: "border-box"
